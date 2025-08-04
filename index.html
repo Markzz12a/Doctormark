@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thermal Feel Detector</title>
+<style>
+  body {
+    margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #121212; color: #eee; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
+  }
+  video {
+    border-radius: 12px; box-shadow: 0 0 15px #ff3e00;
+    max-width: 90vw; width: 320px; height: auto;
+  }
+  .status {
+    margin-top: 20px; font-size: 1.5rem; font-weight: bold;
+    padding: 12px 24px; border-radius: 30px; min-width: 200px; text-align: center;
+    user-select: none;
+  }
+  .normal {
+    background: #22c55e; /* green */
+    box-shadow: 0 0 10px #22c55e88;
+  }
+  .high {
+    background: #ef4444; /* red */
+    box-shadow: 0 0 15px #ef444488;
+  }
+  footer {
+    position: fixed; bottom: 10px; font-size: 0.9rem; color: #777;
+  }
+</style>
+</head>
+<body>
+
+<h1>Thermal Feel Detector</h1>
+<video id="video" autoplay playsinline></video>
+<div id="status" class="status normal">Loading...</div>
+<footer>© YourAppName</footer>
+
+<script>
+  const video = document.getElementById('video');
+  const status = document.getElementById('status');
+
+  // ขออนุญาตใช้กล้องมือถือ/โน้ตบุ๊ก
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      video.srcObject = stream;
+      video.onloadedmetadata = () => {
+        video.play();
+        analyzeFrame();
+      };
+    } catch (err) {
+      status.textContent = 'Cannot access camera: ' + err.message;
+      status.className = 'status high';
+    }
+  }
+
+  // สร้าง canvas ซ่อน เพื่อวิเคราะห์สีภาพ
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function analyzeFrame() {
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      // ตั้ง canvas ขนาดเท่าวิดีโอ
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // วาดเฟรมวิดีโอลง canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // อ่านข้อมูลพิกเซลบางส่วน (เช่น บริเวณกลางจอสมมติแก้ม)
+      // ปรับขนาดเพื่อเร่งความเร็ว
+      const sampleSize = 50;
+      const x = Math.floor(canvas.width / 2);
+      const y = Math.floor(canvas.height / 2);
+      const imageData = ctx.getImageData(x - sampleSize/2, y - sampleSize/2, sampleSize, sampleSize);
+
+      // คำนวณค่าเฉลี่ย R,G,B
+      let r=0, g=0, b=0;
+      for(let i=0; i < imageData.data.length; i += 4) {
+        r += imageData.data[i];
+        g += imageData.data[i+1];
+        b += imageData.data[i+2];
+      }
+      const pixels = imageData.data.length / 4;
+      r = r / pixels;
+      g = g / pixels;
+      b = b / pixels;
+
+      // ตรวจว่าสีแดง (R) สูงกว่าค่าเกณฑ์ไหม (แสดงว่า “ร้อน” หรือหน้าแดง)
+      if (r > 100 && r > g + 20 && r > b + 20) {
+        status.textContent = "High temperature detected!";
+        status.className = 'status high';
+      } else {
+        status.textContent = "Normal temperature";
+        status.className = 'status normal';
+      }
+    }
+    requestAnimationFrame(analyzeFrame);
+  }
+
+  startCamera();
+</script>
+
+</body>
+</html>
